@@ -1,4 +1,4 @@
-module discord-whsender
+module github.com/pasa33/discord-whsender
 
 go 1.22.0
 
