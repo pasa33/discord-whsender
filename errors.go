@@ -4,7 +4,7 @@ import "encoding/base64"
 
 func sendError(url string, status string, req, res []byte) error {
 	s, found := senders.LoadOrStore(url, newSender(url))
-	sender := s.(*Sender)
+	sender := s.(*sender)
 	if !found {
 		sender.initSender()
 	}

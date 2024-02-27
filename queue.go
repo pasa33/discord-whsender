@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-func (s *Sender) queueGet() (p MsgPayload) {
+func (s *sender) queueGet() (p msgPayload) {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
@@ -15,7 +15,7 @@ func (s *Sender) queueGet() (p MsgPayload) {
 		if len(s.Queue) > 1 {
 			s.Queue = s.Queue[1:]
 		} else {
-			s.Queue = []MsgPayload{}
+			s.Queue = []msgPayload{}
 		}
 		return
 	}
@@ -24,11 +24,11 @@ func (s *Sender) queueGet() (p MsgPayload) {
 	return
 }
 
-func (s *Sender) queueAdd(wh Message, isErr bool) error {
+func (s *sender) queueAdd(wh Message, isErr bool) error {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
-	p := MsgPayload{
+	p := msgPayload{
 		IsError: isErr,
 	}
 
@@ -71,7 +71,7 @@ func (s *Sender) queueAdd(wh Message, isErr bool) error {
 	}
 
 	if isErr {
-		s.Queue = append([]MsgPayload{p}, s.Queue...)
+		s.Queue = append([]msgPayload{p}, s.Queue...)
 	} else {
 		s.Queue = append(s.Queue, p)
 	}

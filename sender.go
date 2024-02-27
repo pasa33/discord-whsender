@@ -17,16 +17,16 @@ var (
 	json    = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
-type Sender struct {
+type sender struct {
 	WhUrl   string
 	ErrUrl  string
-	Queue   []MsgPayload
+	Queue   []msgPayload
 	Mu      *sync.Mutex
 	Waiter  *sync.WaitGroup
 	Waiting bool
 }
 
-type MsgPayload struct {
+type msgPayload struct {
 	Bytes       []byte
 	ContentType string
 	IsError     bool
@@ -35,7 +35,7 @@ type MsgPayload struct {
 // Send a message to a specific discord webhook url
 func (msg Message) Send(url string, mergeEmbeds ...bool) error {
 	s, found := senders.LoadOrStore(url, newSender(url))
-	sender := s.(*Sender)
+	sender := s.(*sender)
 	if !found {
 		sender.initSender()
 	}
@@ -45,17 +45,17 @@ func (msg Message) Send(url string, mergeEmbeds ...bool) error {
 	return nil
 }
 
-func newSender(url string) *Sender {
-	return &Sender{
+func newSender(url string) *sender {
+	return &sender{
 		WhUrl:   url,
-		Queue:   []MsgPayload{},
+		Queue:   []msgPayload{},
 		Mu:      &sync.Mutex{},
 		Waiter:  &sync.WaitGroup{},
 		Waiting: false,
 	}
 }
 
-func (s *Sender) initSender() {
+func (s *sender) initSender() {
 	go func() {
 		for {
 			s.Waiter.Wait()
