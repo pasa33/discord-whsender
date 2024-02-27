@@ -16,11 +16,11 @@ func sendError(url string, status string, req, res []byte) error {
 
 func makeErrorMsg(status string, req, res []byte) Message {
 	return Message{
-		Username: "discord-whsender",
+		Username: "whsender-error",
 		Content:  status,
 		Files: []File{
-			{Name: "ReqPayload", Bytes: []byte(base64.StdEncoding.EncodeToString(req))},
-			{Name: "ResPayload", Bytes: []byte(base64.StdEncoding.EncodeToString(res))},
+			{Name: "ReqPayload.txt", Bytes: []byte(base64.StdEncoding.EncodeToString(req))},
+			{Name: "ResPayload.txt", Bytes: []byte(base64.StdEncoding.EncodeToString(res))},
 		},
 	}
 }
