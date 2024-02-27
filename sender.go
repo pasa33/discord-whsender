@@ -66,7 +66,6 @@ func (s *Sender) initSender() {
 					if err != nil {
 						continue
 					}
-					res.Body.Close()
 
 					switch res.StatusCode {
 					case 204:
@@ -87,6 +86,7 @@ func (s *Sender) initSender() {
 						}
 						retry = false
 					}
+					res.Body.Close()
 				}
 			}
 		}
