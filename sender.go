@@ -2,8 +2,8 @@ package discordwhsender
 
 import (
 	"bytes"
-	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"sync"
@@ -15,11 +15,11 @@ import (
 var (
 	senders sync.Map
 	json    = jsoniter.ConfigCompatibleWithStandardLibrary
+	errUrl  string
 )
 
 type sender struct {
 	WhUrl   string
-	ErrUrl  string
 	Queue   []msgPayload
 	Mu      *sync.Mutex
 	Waiter  *sync.WaitGroup
@@ -33,16 +33,16 @@ type msgPayload struct {
 }
 
 // Send a message to a specific discord webhook url
+// TODO: implement mergeEmbeds for reduce ratelimit
 func (msg Message) Send(url string, mergeEmbeds ...bool) error {
-	s, found := senders.LoadOrStore(url, newSender(url))
-	sender := s.(*sender)
-	if !found {
-		sender.initSender()
-	}
-	if err := sender.queueAdd(msg, false); err != nil {
-		return err
-	}
-	return nil
+	sender := getSender(url)
+	return sender.queueAdd(msg, false)
+}
+
+// Set global error webhook url
+// for unset, just set to empty string
+func SetErrorWh(url string) {
+	errUrl = url
 }
 
 func newSender(url string) *sender {
@@ -53,6 +53,15 @@ func newSender(url string) *sender {
 		Waiter:  &sync.WaitGroup{},
 		Waiting: false,
 	}
+}
+
+func getSender(url string) *sender {
+	s, found := senders.LoadOrStore(url, newSender(url))
+	sender := s.(*sender)
+	if !found {
+		sender.initSender()
+	}
+	return sender
 }
 
 func (s *sender) initSender() {
@@ -76,7 +85,7 @@ func (s *sender) initSender() {
 						retry = false
 					case 429:
 						ratelimitDelay, _ := strconv.Atoi(res.Header.Get("retry-after"))
-						fmt.Println("WH Ratelimited for: ", ratelimitDelay)
+						log.Printf("[discord-whsender] Ratelimited: %dms (%s)\n", ratelimitDelay, s.WhUrl)
 						time.Sleep(time.Duration(ratelimitDelay) * time.Millisecond)
 						retry = true
 					default:
