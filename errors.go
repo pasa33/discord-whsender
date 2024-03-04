@@ -7,7 +7,7 @@ import (
 )
 
 func sendError(url string, status string, req, res []byte) error {
-	sender := getSender(cmp.Or(errUrl, url))
+	sender := getSender(cmp.Or(debugUrl, errUrl, url))
 	return sender.queueAdd(makeErrorMsg(status, url, req, res), true)
 }
 

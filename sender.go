@@ -2,6 +2,7 @@ package discordwhsender
 
 import (
 	"bytes"
+	"cmp"
 	"io"
 	"log"
 	"net/http"
@@ -13,9 +14,10 @@ import (
 )
 
 var (
-	senders sync.Map
-	json    = jsoniter.ConfigCompatibleWithStandardLibrary
-	errUrl  string
+	senders  sync.Map
+	json     = jsoniter.ConfigCompatibleWithStandardLibrary
+	errUrl   string
+	debugUrl string
 )
 
 type sender struct {
@@ -35,7 +37,7 @@ type msgPayload struct {
 // Send a message to a specific discord webhook url
 // TODO: implement mergeEmbeds for reduce ratelimit
 func (msg Message) Send(url string, mergeEmbeds ...bool) error {
-	sender := getSender(url)
+	sender := getSender(cmp.Or(debugUrl, url))
 	return sender.queueAdd(msg, false)
 }
 
@@ -43,6 +45,12 @@ func (msg Message) Send(url string, mergeEmbeds ...bool) error {
 // for unset, just set to empty string
 func SetErrorWh(url string) {
 	errUrl = url
+}
+
+// Set debug webhook
+// that override every whs
+func SetDebugWh(url string) {
+	debugUrl = url
 }
 
 func newSender(url string) *sender {
