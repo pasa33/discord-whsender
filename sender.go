@@ -85,7 +85,7 @@ func (s *sender) initSender() {
 					}
 
 					switch res.StatusCode {
-					case 204:
+					case 200, 204:
 						rtRemaining, _ := strconv.Atoi(res.Header.Get("x-ratelimit-remaining"))
 						if rtRemaining < 3 {
 							time.Sleep(300 * time.Millisecond)
