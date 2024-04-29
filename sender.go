@@ -11,10 +11,11 @@ import (
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
+	cmap "github.com/orcaman/concurrent-map/v2"
 )
 
 var (
-	senders  sync.Map
+	senders  cmap.ConcurrentMap[string, *sender]
 	json     = jsoniter.ConfigCompatibleWithStandardLibrary
 	errUrl   string
 	debugUrl string
@@ -38,6 +39,7 @@ type msgPayload struct {
 // TODO: implement mergeEmbeds for reduce ratelimit
 func (msg Message) Send(url string, mergeEmbeds ...bool) error {
 	sender := getSender(cmp.Or(debugUrl, url))
+	msg.validate()
 	return sender.queueAdd(msg, false)
 }
 
@@ -64,12 +66,15 @@ func newSender(url string) *sender {
 }
 
 func getSender(url string) *sender {
-	s, found := senders.LoadOrStore(url, newSender(url))
-	sender := s.(*sender)
-	if !found {
-		sender.initSender()
+	s, found := senders.Get(url)
+	if s == nil {
+		s = newSender(url)
+		senders.Set(url, s)
 	}
-	return sender
+	if !found {
+		s.initSender()
+	}
+	return s
 }
 
 func (s *sender) initSender() {
