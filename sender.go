@@ -19,6 +19,7 @@ var (
 	json     = jsoniter.ConfigCompatibleWithStandardLibrary
 	errUrl   string
 	debugUrl string
+	ismuted  bool
 )
 
 type sender struct {
@@ -38,6 +39,9 @@ type msgPayload struct {
 // Send a message to a specific discord webhook url
 // TODO: implement mergeEmbeds for reduce ratelimit
 func (msg Message) Send(url string, mergeEmbeds ...bool) error {
+	if ismuted {
+		return nil
+	}
 	sender := getSender(cmp.Or(debugUrl, url))
 	msg.validate()
 	return sender.queueAdd(msg, false)
@@ -53,6 +57,10 @@ func SetErrorWh(url string) {
 // that override every whs
 func SetDebugWh(url string) {
 	debugUrl = url
+}
+
+func SetMuted(muted bool) {
+	ismuted = muted
 }
 
 func newSender(url string) *sender {
