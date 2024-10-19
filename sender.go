@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	senders  cmap.ConcurrentMap[string, *sender]
+	senders  = cmap.New[*sender]()
 	json     = jsoniter.ConfigCompatibleWithStandardLibrary
 	errUrl   string
 	debugUrl string
