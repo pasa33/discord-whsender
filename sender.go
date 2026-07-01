@@ -1,124 +1,65 @@
+// Package discordwhsender sends messages to Discord webhooks asynchronously,
+// with automatic rate-limit handling and per-webhook delivery queues.
 package discordwhsender
 
 import (
-	"bytes"
 	"cmp"
-	"io"
-	"log"
-	"net/http"
-	"strconv"
 	"sync"
-	"time"
-
-	jsoniter "github.com/json-iterator/go"
-	cmap "github.com/orcaman/concurrent-map/v2"
 )
 
 var (
-	senders  = cmap.New[*sender]()
-	json     = jsoniter.ConfigCompatibleWithStandardLibrary
-	errUrl   string
-	debugUrl string
-	ismuted  bool
+	senders   sync.Map // string(webhook URL) -> *sender
+	sendersMu sync.Mutex
+
+	errURL   string
+	debugURL string
+	muted    bool
 )
 
-type sender struct {
-	WhUrl   string
-	Queue   []msgPayload
-	Mu      *sync.Mutex
-	Waiter  *sync.WaitGroup
-	Waiting bool
-}
-
-type msgPayload struct {
-	Bytes       []byte
-	ContentType string
-	IsError     bool
-}
-
-// Send a message to a specific discord webhook url
-// TODO: implement mergeEmbeds for reduce ratelimit
-func (msg Message) Send(url string, mergeEmbeds ...bool) error {
-	if ismuted {
+// Send queues msg for asynchronous delivery to the given Discord webhook URL.
+// Delivery happens on a per-webhook background worker that retries automatically
+// on rate limits (HTTP 429).
+func (msg Message) Send(url string) error {
+	if muted {
 		return nil
 	}
-	sender := getSender(cmp.Or(debugUrl, url))
 	msg.validate()
-	return sender.queueAdd(msg, false)
+	return getSender(cmp.Or(debugURL, url)).enqueue(msg, false)
 }
 
-// Set global error webhook url
-// for unset, just set to empty string
+// SetErrorWh sets the webhook URL used to report delivery failures (request and
+// response payloads are attached as files). Pass an empty string to disable.
 func SetErrorWh(url string) {
-	errUrl = url
+	errURL = url
 }
 
-// Set debug webhook
-// that override every whs
+// SetDebugWh redirects every Send call to the given webhook URL, regardless of
+// the URL passed to Send. Pass an empty string to clear it.
 func SetDebugWh(url string) {
-	debugUrl = url
+	debugURL = url
 }
 
-func SetMuted(muted bool) {
-	ismuted = muted
-}
-
-func newSender(url string) *sender {
-	return &sender{
-		WhUrl:   url,
-		Queue:   []msgPayload{},
-		Mu:      &sync.Mutex{},
-		Waiter:  &sync.WaitGroup{},
-		Waiting: false,
-	}
+// SetMuted disables (or re-enables) all sends. Useful in tests or local dev so
+// messages aren't posted to real webhooks.
+func SetMuted(m bool) {
+	muted = m
 }
 
 func getSender(url string) *sender {
-	s, found := senders.Get(url)
-	if s == nil {
-		s = newSender(url)
-		senders.Set(url, s)
+	if v, ok := senders.Load(url); ok {
+		return v.(*sender)
 	}
-	if !found {
-		s.initSender()
+	sendersMu.Lock()
+	defer sendersMu.Unlock()
+	if v, ok := senders.Load(url); ok {
+		return v.(*sender)
 	}
+	s := &sender{
+		url:      url,
+		queue:    make(chan payload, queueCapacity),
+		errQueue: make(chan payload, queueCapacity),
+	}
+	senders.Store(url, s)
+	go s.run()
 	return s
-}
-
-func (s *sender) initSender() {
-	go func() {
-		for {
-			s.Waiter.Wait()
-			if p := s.queueGet(); len(p.Bytes) > 0 {
-				retry := true
-				for retry {
-					res, err := http.Post(s.WhUrl, p.ContentType, bytes.NewBuffer(p.Bytes))
-					if err != nil {
-						continue
-					}
-
-					switch res.StatusCode {
-					case 200, 204:
-						rtRemaining, _ := strconv.Atoi(res.Header.Get("x-ratelimit-remaining"))
-						if rtRemaining < 3 {
-							time.Sleep(300 * time.Millisecond)
-						}
-						retry = false
-					case 429:
-						ratelimitDelay, _ := strconv.Atoi(res.Header.Get("retry-after"))
-						log.Printf("[discord-whsender] Ratelimited: %dms (%s)\n", ratelimitDelay, s.WhUrl)
-						time.Sleep(time.Duration(ratelimitDelay) * time.Millisecond)
-						retry = true
-					default:
-						if !p.IsError {
-							bbody, _ := io.ReadAll(res.Body)
-							sendError(s.WhUrl, res.Status, p.Bytes, bbody)
-						}
-						retry = false
-					}
-					res.Body.Close()
-				}
-			}
-		}
-	}()
 }

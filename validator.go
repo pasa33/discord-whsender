@@ -2,6 +2,8 @@ package discordwhsender
 
 import "cmp"
 
+// validate enforces Discord's embed field constraints (non-empty, length
+// limits) before a message is sent.
 func (msg *Message) validate() {
 	for _, emb := range msg.Embeds {
 		for _, v := range emb.Fields {
